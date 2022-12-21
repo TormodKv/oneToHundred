@@ -79,6 +79,7 @@ def startGame_handler(update: Update, context: CallbackContext):
 
     if players.__len__() < 2:
         update.message.reply_text("Not enough players have joined 😅")
+        return
 
     numbers = list(range(1,getMaxCount(update.effective_chat.id)))
     while numbers.__len__() > NumberOfActiveCards:
