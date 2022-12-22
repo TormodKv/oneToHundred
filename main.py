@@ -13,6 +13,7 @@ gameIsActive = {}
 NumberOfActiveCards = {}
 pollIds = {}
 maxCount = {}
+lastCoorectNumberMessageId = {}
 
 #Getters and setters for the sessions:
 def getPlayers(chatId):
@@ -22,6 +23,14 @@ def getPlayers(chatId):
 def setPlayers(newPlayers, chatId):
     global players
     players[chatId] = newPlayers
+
+def getlastCoorectNumberMessageId(chatId):
+    global lastCoorectNumberMessageId
+    return lastCoorectNumberMessageId.get(chatId)
+
+def setlastCoorectNumberMessageId(newlastCoorectNumberMessageId, chatId):
+    global lastCoorectNumberMessageId
+    lastCoorectNumberMessageId[chatId] = newlastCoorectNumberMessageId
 
 def getMaxCount(chatId):
     global maxCount
@@ -91,8 +100,12 @@ def startGame_handler(update: Update, context: CallbackContext):
         players[playerIndex][1] = []
         for _ in range(0, NumberOfActiveCards // players.__len__()):
             players[playerIndex][1].append(numbers.pop(0))
-        if numbers.__len__() == 1:
-            players[playerIndex][1].append(numbers.pop(0))
+        
+    #Give out the remaining cards
+    playerIndex = 0
+    while (numbers.__len__() > 0):
+        players[playerIndex][1].append(numbers.pop(0))
+        playerIndex += 1
 
     update.message.reply_text(f"The game has started\nThe rules are:\nWe count from 0 to {getMaxCount(update.effective_chat.id)}\nWe play with {getNumberOfActiveCards(update.effective_chat.id)} active cards\nHers's your cards\. *Only open your own name\!*", parse_mode='MarkdownV2')
     for player in players:
@@ -128,8 +141,7 @@ def active_cards_handler(update: Update, context: CallbackContext):
 
 def show_cards(update: Update, context: CallbackContext):
     update.message.reply_text(f"Hers's your cards again. Only open your own name!")
-    for player in players:
-        player[1].sort()
+    for player in getPlayers(update.effective_chat.id):
         update.message.reply_text(player[0].full_name + " cards: ||" + str(player[1]) + "||", parse_mode='MarkdownV2')
 
 def number_handler(update: Update, context: CallbackContext):
@@ -139,12 +151,12 @@ def number_handler(update: Update, context: CallbackContext):
     players : list = getPlayers(update.effective_chat.id)
     lowestNumber = 999
     personWithLowestNumber : User = players[0][0]
-    for i in range(0,players.__len__() - 1):
+    for i in range(0,players.__len__()):
         playerCards : list = players[i][1]
-        if playerCards[0] != None and playerCards[0] < lowestNumber:
+        if playerCards.__len__() > 0 and playerCards[0] != None and playerCards[0] < lowestNumber:
             lowestNumber = playerCards[0]
             personWithLowestNumber = players[i][0]
-        if playerCards[0] == number:
+        if playerCards.__len__() > 0 and playerCards[0] == number:
             players[i][1].pop(0)
 
     if (number != lowestNumber or personWithLowestNumber.id != update.effective_user.id):
@@ -152,8 +164,27 @@ def number_handler(update: Update, context: CallbackContext):
         setGameIsActive(False, update.effective_chat.id)
         update.message.reply_text(f"You lost! The lowest number was: {str(lowestNumber)}, owned by {personWithLowestNumber.full_name}")
     else:
+        #Everything went well. Correct number was chosen
         setPlayers(players, update._effective_chat.id)
-        #update.message.reply_text("✅")
+
+        lastMessageId = getlastCoorectNumberMessageId(update.effective_chat.id)
+        if lastMessageId != None:
+            context.bot.delete_message(update.effective_chat.id, lastMessageId)
+        
+        setlastCoorectNumberMessageId(update.message.message_id, update.effective_chat.id)
+
+        #Check if the game is won
+        hasWon = True
+        for player in players:
+            if player[1] != []:
+                hasWon = False
+                break
+        
+        if hasWon:
+            update.message.reply_text("You won the game! 🎉")
+            setPlayers([],update.effective_chat.id)
+            setGameIsActive(False, update.effective_chat.id)
+            update.message.reply_text("Type /setup to start a new game!")
 
 def answerRegistered(update: Update, context: CallbackContext):
     global pollIds
